@@ -217,6 +217,60 @@ def _maven_path(name: str) -> str:
     return f"{base}/{artifact}-{version}{suffix}.jar"
 
 
+# Maven repositories probed (in order) for libraries that carry no downloads
+# info (Fabric / Forge / NeoForge style profiles declare bare coords only).
+_MAVEN_FALLBACKS = (
+    ("net.fabricmc", "https://maven.fabricmc.net/"),
+    ("net.minecraftforge", "https://maven.minecraftforge.net/"),
+    ("cpw.mods", "https://maven.minecraftforge.net/"),
+    ("net.neoforged", "https://maven.neoforged.net/releases/"),
+)
+_MAVEN_CATCHALL = (
+    "https://repo1.maven.org/maven2/",
+    "https://libraries.minecraft.net/",
+)
+
+
+def _candidate_bases(name: str) -> list[str]:
+    bases = [base for prefix, base in _MAVEN_FALLBACKS if name.startswith(prefix)]
+    seen = set(bases)
+    for base in _MAVEN_CATCHALL:
+        if base not in seen:
+            bases.append(base)
+    return bases
+
+
+def _resolve_maven_url(name: str) -> str:
+    last_err = None
+    for base in _candidate_bases(name):
+        url = base + _maven_path(name)
+        try:
+            resp = requests.head(
+                url, timeout=20, allow_redirects=True, headers={"User-Agent": USER_AGENT}
+            )
+            if resp.status_code < 400:
+                return url
+            last_err = f"HTTP {resp.status_code}"
+        except requests.RequestException as exc:
+            last_err = exc
+    raise RuntimeError(f"could not resolve library {name!r} from any known maven repo ({last_err})")
+
+
+def _lib_rel_dest(lib: dict) -> tuple[str | None, str | None]:
+    """Returns (rel_path, dest_path) or (None, None) if the lib is irrelevant
+    here (classifiers-only library with no native build for this platform)."""
+    downloads = lib.get("downloads") or {}
+    if downloads.get("classifiers"):
+        artifact = _lib_artifact(lib)  # None => no native for this OS/arch
+        if artifact is None:
+            return None, None
+        rel = artifact.get("path") or _maven_path(lib.get("name", ""))
+        return rel, str(libraries_dir() / rel)
+    artifact = downloads.get("artifact")
+    rel = (artifact or {}).get("path") or _maven_path(lib.get("name", ""))
+    return rel, str(libraries_dir() / rel)
+
+
 def resolve_libraries(data: dict) -> tuple[list[str], list[str]]:
     """Returns (classpath_jars, native_jars) as absolute paths (undownloaded)."""
     classpath: list[str] = []
@@ -224,37 +278,54 @@ def resolve_libraries(data: dict) -> tuple[list[str], list[str]]:
     for lib in data.get("libraries", []):
         if not rules_allow(lib.get("rules")):
             continue
-        artifact = _lib_artifact(lib)
-        if artifact is None:
+        rel, dest = _lib_rel_dest(lib)
+        if rel is None:
             continue
-        rel = artifact.get("path") or _maven_path(lib.get("name", ""))
-        url = artifact.get("url") or (LIBRARIES_BASE + rel)
-        dest = libraries_dir() / rel
-        is_native = ("natives" in os.path.basename(rel)) or (
-            "classifiers" in (lib.get("downloads") or {})
-        )
+        dl = lib.get("downloads") or {}
+        is_native = ("natives" in os.path.basename(rel)) or bool(dl.get("classifiers"))
         if is_native:
-            natives.append(str(dest))
+            natives.append(dest)
         else:
-            classpath.append(str(dest))
+            classpath.append(dest)
     return classpath, natives
 
 
 def _artifact_meta(lib: dict) -> list[dict]:
     out = []
-    artifact = _lib_artifact(lib)
-    if artifact is None:
-        return out
-    rel = artifact.get("path") or _maven_path(lib.get("name", ""))
-    url = artifact.get("url") or (LIBRARIES_BASE + rel)
-    out.append(
-        {
-            "url": url,
-            "dest": str(libraries_dir() / rel),
-            "sha1": artifact.get("sha1"),
-            "size": artifact.get("size"),
-        }
-    )
+    downloads = lib.get("downloads") or {}
+    name = lib.get("name", "")
+    if downloads.get("classifiers"):
+        artifact = _lib_artifact(lib)
+        if artifact is None:
+            return out
+        rel = artifact.get("path") or _maven_path(name)
+        dest = str(libraries_dir() / rel)
+        url = artifact.get("url") or (LIBRARIES_BASE + rel)
+        return [{"url": url, "dest": dest, "sha1": artifact.get("sha1"), "size": artifact.get("size")}]
+
+    artifact = downloads.get("artifact")
+    rel = (artifact or {}).get("path") or _maven_path(name)
+    dest = str(libraries_dir() / rel)
+    if artifact:
+        url = artifact.get("url") or LIBRARIES_BASE + rel
+        out.append(
+            {
+                "url": url,
+                "dest": dest,
+                "sha1": artifact.get("sha1"),
+                "size": artifact.get("size"),
+            }
+        )
+    else:
+        # bare maven coords (Fabric/Forge/NeoForge profiles): probe repos
+        out.append(
+            {
+                "url": _resolve_maven_url(name),
+                "dest": dest,
+                "sha1": None,
+                "size": None,
+            }
+        )
     return out
 
 
