@@ -37,17 +37,10 @@ def fabric_loaders() -> list[dict]:
     return [{"version": v["version"], "stable": v.get("stable", False)} for v in data]
 
 
-def fabric_installers() -> list[dict]:
-    data = _get_json(f"{FABRIC_META}/versions/installer")
-    return [{"version": v["version"], "stable": v.get("stable", False)} for v in data]
-
-
 def install_fabric(mc_version: str, loader_version: str, log=print) -> str:
     """Fetch the Fabric launcher profile, register it as a version. Returns version id."""
-    installers = fabric_installers()
-    installer = next((i for i in installers if i["stable"]), installers[0])
-    log(f"Fabric installer {installer['version']}, loader {loader_version}, mc {mc_version}")
-    url = f"{FABRIC_META}/versions/loader/{mc_version}/{loader_version}/{installer['version']}/profile/json"
+    log(f"Fabric loader {loader_version} for MC {mc_version}")
+    url = f"{FABRIC_META}/versions/loader/{mc_version}/{loader_version}/profile/json"
     profile = _get_json(url)
     version_id = profile["id"]
     dest_dir = versions_dir() / version_id
