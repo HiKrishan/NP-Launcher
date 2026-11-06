@@ -285,11 +285,22 @@ def create_app() -> Flask:
 
         def work():
             def cb(phase, done, total):
-                if isinstance(total, int) and total > 0:
-                    JOB.update(phase=str(phase), done=0 if done is None else int(done or 0),
-                               total=total, message=f"{phase}: {done}/{total}")
-                else:
-                    JOB.update(phase=str(phase), message=str(done))
+                # Two callback shapes flow through here:
+                #   mojang.prepare_version -> (phase, done:int, total:int)
+                #   java.ensure_java       -> ("java", message:str, 1)
+                if isinstance(done, str):
+                    JOB.update(phase=str(phase), message=done)
+                    return
+                try:
+                    d = int(done) if done is not None else 0
+                except (TypeError, ValueError):
+                    d = 0
+                try:
+                    t = int(total) if total else 0
+                except (TypeError, ValueError):
+                    t = 0
+                JOB.update(phase=str(phase), done=d, total=t,
+                           message=f"{phase}: {d}/{t}" if t > 1 else str(phase))
             return launch.launch_instance(inst, on_progress=cb)
 
         ok = _run_job(work)
