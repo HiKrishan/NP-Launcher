@@ -8,6 +8,7 @@ const state = {
   settings: null,
   dataDir: '',
   instances: [],
+  accounts: { active: null, accounts: [] },
   versions: [],
   versionsFiltered: [],
   discoverType: 'mod',
@@ -93,13 +94,118 @@ function switchView(name) {
 
 $$('.nav-item').forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
 
-/* ─────────────────────────── profile / skin ─────────────────────────── */
+/* ─────────────── Microsoft accounts ─────────────── */
+
+function activeAccount() {
+  return (state.accounts.accounts || []).find(a => a.active) || null;
+}
+
+async function loadAccounts() {
+  try {
+    state.accounts = await api('/api/accounts');
+  } catch {
+    state.accounts = { active: null, accounts: [] };
+  }
+  renderAccounts();
+  return state.accounts;
+}
+
+function renderAccounts() {
+  const list = $('#accountsList');
+  const ms = activeAccount();
+  const hint = $('#accountHint');
+  hint.textContent = ms ? 'Microsoft' : 'offline';
+
+  if (ms) {
+    $('#profileUsername').value = ms.name;
+    $('#profileUsername').disabled = true;
+    $('#profileUuid').value = ms.uuid;
+    $('#skinBig').src = skinUrl(ms.name, 180);
+    $('#skinMini').src = skinUrl(ms.name, 90);
+    $('#footUsername').textContent = ms.name;
+    $('#saveProfileBtn').disabled = true;
+    $('#saveProfileBtn').textContent = 'Signed in via Microsoft';
+  } else {
+    $('#profileUsername').disabled = false;
+    $('#saveProfileBtn').disabled = false;
+    $('#saveProfileBtn').textContent = 'Save profile';
+  }
+
+  if (!state.accounts.accounts.length) {
+    list.innerHTML = '<div class="accounts-note" style="margin:0">No Microsoft accounts yet.</div>';
+    return;
+  }
+  list.innerHTML = state.accounts.accounts.map(a => `
+    <div class="account-row ${a.active ? 'active' : ''}">
+      <img class="account-avatar" src="https://mc-heads.net/avatar/${encodeURIComponent(a.name)}/68" alt="" loading="lazy"
+           onerror="this.onerror=null;this.src=''" />
+      <div class="account-meta">
+        <div class="account-name">${esc(a.name)}${a.active ? '<span class="account-badge">active</span>' : ''}</div>
+        <div class="account-uuid">${esc(a.uuid)}</div>
+      </div>
+      <div class="account-actions">
+        ${a.active ? '' : `<button class="btn btn-ghost btn-small account-select" data-uuid="${esc(a.uuid)}">Use</button>`}
+        <button class="btn btn-danger btn-small account-remove" data-uuid="${esc(a.uuid)}">Remove</button>
+      </div>
+    </div>`).join('');
+}
+
+$('#accountsList').addEventListener('click', async ev => {
+  const sel = ev.target.closest('.account-select');
+  if (sel) {
+    try { await api('/api/accounts/select', { method: 'POST', body: JSON.stringify({ uuid: sel.dataset.uuid }) }); toast('Account selected.'); await loadAccounts(); }
+    catch (e) { toast(e.message, true); }
+    return;
+  }
+  const rem = ev.target.closest('.account-remove');
+  if (rem) {
+    if (!confirm('Remove this Microsoft account from NP Launcher?')) return;
+    try { await api('/api/accounts/' + encodeURIComponent(rem.dataset.uuid), { method: 'DELETE' }); toast('Account removed.'); await loadAccounts(); }
+    catch (e) { toast(e.message, true); }
+  }
+});
+
+$('#msSignInBtn').addEventListener('click', async () => {
+  try {
+    const { url } = await api('/api/accounts/ms/start', { method: 'POST' });
+    window.open(url, '_blank', 'noopener');
+    $('#msPasteWrap').classList.remove('hidden');
+    $('#msPasteInput').focus();
+    toast('Complete the sign-in in your browser, then paste the final URL here.');
+  } catch (e) { toast(e.message, true); }
+});
+
+$('#msPasteCancel').addEventListener('click', () => $('#msPasteWrap').classList.add('hidden'));
+
+$('#msPasteSubmit').addEventListener('click', async () => {
+  const url = $('#msPasteInput').value.trim();
+  if (!url) return toast('Paste the URL first.', true);
+  const btn = $('#msPasteSubmit');
+  btn.disabled = true;
+  btn.textContent = 'Signing in…';
+  try {
+    const { account } = await api('/api/accounts/ms/callback', { method: 'POST', body: JSON.stringify({ url }) });
+    toast(`Signed in as ${account.name}. Welcome to the full game.`);
+    $('#msPasteInput').value = '';
+    $('#msPasteWrap').classList.add('hidden');
+    await loadAccounts();
+  } catch (e) {
+    toast(e.message, true);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Complete sign-in';
+  }
+});
+
+/* ─────────────── profile / skin ─────────────── */
 
 async function refreshProfile() {
-  const username = ($('#profileUsername').value || 'Player').trim() || 'Player';
+  const ms = activeAccount();
+  const username = ms ? ms.name : (($('#profileUsername').value || 'Player').trim() || 'Player');
   $('#skinBig').src = skinUrl(username, 180);
   $('#skinMini').src = skinUrl(username, 90);
   $('#footUsername').textContent = username;
+  if (ms) { $('#profileUuid').value = ms.uuid; return; }
   try {
     const { uuid } = await api('/api/uuid?name=' + encodeURIComponent(username));
     $('#profileUuid').value = uuid;
@@ -349,6 +455,7 @@ function openEditInstance(id) {
   $('#eiMaxMb').value = inst.max_mb ?? 4096;
   $('#eiJvmArgs').value = inst.jvm_args || '';
   $('#eiMeta').innerHTML = `Version <strong>${esc(inst.mc_version || inst.version_id)}</strong> · loader <strong>${esc(inst.loader)}</strong>${inst.loader_version ? ' ' + esc(inst.loader_version) : ''} · folder: ${esc(inst.game_dir || '')}`;
+  loadScreenshots(inst.id);
   editInstanceModal.classList.remove('hidden');
 }
 function closeEditInstance() { editInstanceModal.classList.add('hidden'); }
@@ -386,6 +493,105 @@ $('#deleteInstanceBtn').addEventListener('click', async () => {
     loadInstances();
   } catch (e) { toast(e.message, true); }
 });
+
+/* ─────────────── import from other launchers ─────────────── */
+
+const importModal = $('#importModal');
+const importList = $('#importList');
+
+function openImport() { importModal.classList.remove('hidden'); scanImport(); }
+function closeImport() { importModal.classList.add('hidden'); }
+
+$('#importInstancesBtn').addEventListener('click', openImport);
+$('#closeImportModal').addEventListener('click', closeImport);
+$('#cancelImportBtn').addEventListener('click', closeImport);
+importModal.addEventListener('click', e => { if (e.target === importModal) closeImport(); });
+$('#rescanImportBtn').addEventListener('click', scanImport);
+
+async function scanImport() {
+  const status = $('#importScanStatus');
+  importList.innerHTML = '<div class="import-empty">Scanning Prism / SKLauncher / Modrinth / Fast Client…</div>';
+  status.textContent = '';
+  try {
+    const { sources } = await api('/api/import/scan');
+    if (!sources.length) {
+      importList.innerHTML = '<div class="import-empty">Nothing found — no supported launchers with instances on this machine.</div>';
+      status.textContent = '0 found';
+      return;
+    }
+    importList.innerHTML = sources.map(src => `
+      <div class="import-source">
+        <div class="import-source-head"><span>${esc(src.label)}</span><span>${src.instances.length} found</span></div>
+        ${src.instances.map(inst => `
+          <label class="import-row">
+            <input type="checkbox" class="import-check" data-launcher="${esc(src.launcher)}" data-source="${esc(src.source_id)}" data-name="${esc(inst.name)}" ${inst.version ? '' : 'disabled'} />
+            <div class="import-row-info">
+              <div class="import-row-name">${esc(inst.name)}</div>
+              <div class="import-row-sub">${esc(inst.version || 'unknown version')}${inst.loader && inst.loader !== 'vanilla' ? ' · ' + esc(inst.loader) : ' · vanilla'}${inst.mods_count ? ' · ' + inst.mods_count + ' mods' : ''}${inst.saves_count ? ' · ' + inst.saves_count + ' saves' : ''}${inst.screenshots_count ? ' · ' + inst.screenshots_count + ' shots' : ''}</div>
+            </div>
+            <input class="input import-dest" value="${esc(inst.name)}" spellcheck="false" aria-label="Destination name" />
+          </label>`).join('')}
+      </div>`).join('');
+    const total = sources.reduce((n, s) => n + s.instances.length, 0);
+    status.textContent = total + ' instance(s) found';
+  } catch (e) {
+    importList.innerHTML = `<div class="import-empty">Scan failed: ${esc(e.message)}</div>`;
+  }
+}
+
+$('#doImportBtn').addEventListener('click', async () => {
+  const rows = $$('.import-row', importList).filter(r => {
+    const cb = r.querySelector('.import-check');
+    return cb && cb.checked && !cb.disabled;
+  });
+  if (!rows.length) return toast('Tick at least one instance first.', true);
+  const items = rows.map(r => {
+    const cb = r.querySelector('.import-check');
+    return {
+      launcher: cb.dataset.launcher,
+      source_id: cb.dataset.source,
+      dest_name: r.querySelector('.import-dest').value.trim() || cb.dataset.name,
+    };
+  });
+  const options = {
+    copy_options: $('#impOptOptions').checked,
+    copy_mods: $('#impOptMods').checked,
+    copy_resourcepacks: $('#impOptPacks').checked,
+    copy_saves: $('#impOptSaves').checked,
+    copy_config: $('#impOptConfig').checked,
+    copy_shaderpacks: $('#impOptShaders').checked,
+    copy_screenshots: $('#impOptShots').checked,
+  };
+  try {
+    await api('/api/import', { method: 'POST', body: JSON.stringify({ items, options }) });
+    toast(`Importing ${items.length} instance(s) — watch the console.`);
+    closeImport();
+    openConsole();
+    setTimeout(loadInstances, 2500);
+  } catch (e) { toast(e.message, true); }
+});
+
+/* ─────────────── screenshots in edit modal ─────────────── */
+
+async function loadScreenshots(id) {
+  const grid = $('#eiShots');
+  const empty = $('#eiShotsEmpty');
+  const count = $('#eiShotsCount');
+  grid.innerHTML = '';
+  count.textContent = '';
+  empty.classList.add('hidden');
+  try {
+    const { screenshots } = await api('/api/instances/' + encodeURIComponent(id) + '/screenshots');
+    if (!screenshots.length) { empty.classList.remove('hidden'); return; }
+    count.textContent = screenshots.length + ' file' + (screenshots.length === 1 ? '' : 's');
+    grid.innerHTML = screenshots.slice(0, 24).map(s => `
+      <a href="/api/instances/${encodeURIComponent(id)}/screenshots/${encodeURIComponent(s.name)}" target="_blank" rel="noopener" title="${esc(s.name)}">
+        <img src="/api/instances/${encodeURIComponent(id)}/screenshots/${encodeURIComponent(s.name)}" loading="lazy" alt="${esc(s.name)}" />
+      </a>`).join('');
+  } catch {
+    count.textContent = 'unavailable';
+  }
+}
 
 /* ─────────────── discover ─────────────── */
 
@@ -499,9 +705,11 @@ async function loadSettings() {
     $('#defaultMaxMb').value = settings.default_max_mb;
     $('#jvmArgs').value = settings.jvm_args || '';
     $('#updateRepo').value = settings.update_repo || '';
+    $('#discordClientId').value = settings.discord_client_id || '';
     $('#newsEnabled').checked = settings.news_enabled !== false;
     $('#dataDirPath').textContent = data_dir;
     $('#footVersion').textContent = 'v' + (await appVersion());
+    await loadAccounts();
     refreshProfile();
   } catch (e) { toast(e.message, true); }
 }
@@ -540,6 +748,7 @@ $('#saveSettingsBtn').addEventListener('click', async () => {
     default_max_mb: parseInt($('#defaultMaxMb').value, 10) || 4096,
     jvm_args: $('#jvmArgs').value.trim(),
     update_repo: $('#updateRepo').value.trim(),
+    discord_client_id: $('#discordClientId').value.trim(),
     news_enabled: $('#newsEnabled').checked,
   };
   try {

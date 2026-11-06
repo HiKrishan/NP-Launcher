@@ -97,7 +97,7 @@
 
       <div class="side-col">
         <div class="panel profile-panel">
-          <div class="panel-head"><h2>Your Player</h2><span class="panel-hint">offline</span></div>
+          <div class="panel-head"><h2>Your Player</h2><span class="panel-hint" id="accountHint">offline</span></div>
           <div class="profile-body">
             <div class="profile-skin">
               <img id="skinBig" alt="player skin" referrerpolicy="no-referrer"
@@ -113,6 +113,23 @@
                 <input id="profileUuid" class="input input-mono" readonly tabindex="-1" />
               </label>
               <button class="btn btn-ghost btn-small" id="saveProfileBtn">Save profile</button>
+            </div>
+          </div>
+
+          <div class="accounts-box">
+            <div class="accounts-head">
+              <span class="accounts-title">Microsoft accounts</span>
+              <button class="btn btn-ghost btn-small" id="msSignInBtn">Sign in with Microsoft</button>
+            </div>
+            <p class="accounts-note">A Microsoft account that owns Minecraft: Java Edition unlocks full mode. Offline sessions launch in the free trial demo.</p>
+            <div class="accounts-list" id="accountsList"></div>
+            <div class="ms-paste hidden" id="msPasteWrap">
+              <p class="accounts-note">Sign in in the browser tab that just opened, then copy the full address of the page you land on and paste it here:</p>
+              <input id="msPasteInput" class="input input-mono" spellcheck="false" placeholder="https://login.live.com/oauth20_desktop.srf?code=…" autocomplete="off" />
+              <div class="btn-row">
+                <button class="btn btn-primary btn-small" id="msPasteSubmit">Complete sign-in</button>
+                <button class="btn btn-ghost btn-small" id="msPasteCancel">Cancel</button>
+              </div>
             </div>
           </div>
         </div>
@@ -135,6 +152,7 @@
         <p class="page-sub">Every instance is its own folder — mods, saves and configs stay separate.</p>
       </div>
       <div class="head-actions">
+        <button class="btn btn-ghost" id="importInstancesBtn">Import…</button>
         <button class="btn btn-primary" id="newInstanceBtn">+ New instance</button>
       </div>
     </header>
@@ -219,6 +237,10 @@
         <label class="field">
           <span class="field-label">Extra JVM args <em>(applied to every launch)</em></span>
           <input id="jvmArgs" class="input input-mono" spellcheck="false" placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=130" />
+        </label>
+        <label class="field">
+          <span class="field-label">Discord client ID <em>(optional — enables “Playing Minecraft” rich presence)</em></span>
+          <input id="discordClientId" class="input input-mono" spellcheck="false" placeholder="e.g. 1234567890123456789" autocomplete="off" />
         </label>
         <label class="check"><input type="checkbox" id="newsEnabled" /> Show the news feed on Home</label>
       </div>
@@ -311,6 +333,37 @@
   </div>
 </div>
 
+<!-- ═══ Import instances modal ═══ -->
+<div class="modal-backdrop hidden" id="importModal">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Import from other launchers</h2>
+      <button class="icon-btn" id="closeImportModal" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="import-controls">
+        <button class="btn btn-ghost btn-small" id="rescanImportBtn">Rescan</button>
+        <span id="importScanStatus" class="panel-hint"></span>
+      </div>
+      <div class="import-list" id="importList"></div>
+      <div class="import-options">
+        <span class="field-label" style="width:100%">Copy over:</span>
+        <label class="check"><input type="checkbox" id="impOptOptions" checked /> options.txt</label>
+        <label class="check"><input type="checkbox" id="impOptMods" checked /> Mods</label>
+        <label class="check"><input type="checkbox" id="impOptPacks" checked /> Resource packs</label>
+        <label class="check"><input type="checkbox" id="impOptSaves" /> Saves</label>
+        <label class="check"><input type="checkbox" id="impOptConfig" checked /> Configs</label>
+        <label class="check"><input type="checkbox" id="impOptShaders" checked /> Shader packs</label>
+        <label class="check"><input type="checkbox" id="impOptShots" checked /> Screenshots</label>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="cancelImportBtn">Cancel</button>
+      <button class="btn btn-primary" id="doImportBtn">Import selected</button>
+    </div>
+  </div>
+</div>
+
 <!-- ═══ Edit instance modal ═══ -->
 <div class="modal-backdrop hidden" id="editInstanceModal">
   <div class="modal" role="dialog" aria-modal="true">
@@ -327,6 +380,12 @@
       </div>
       <label class="field"><span class="field-label">JVM args</span><input id="eiJvmArgs" class="input input-mono" spellcheck="false" /></label>
       <div class="edit-meta" id="eiMeta"></div>
+
+      <div class="shots-wrap">
+        <div class="panel-head" style="margin:12px 0 8px"><h2 style="font-size:13px">Screenshots</h2><span class="panel-hint" id="eiShotsCount"></span></div>
+        <div class="shots-grid" id="eiShots"></div>
+        <p class="foot-note hidden" id="eiShotsEmpty">No screenshots yet — press F2 in game.</p>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-danger" id="deleteInstanceBtn">Delete</button>

@@ -16,7 +16,11 @@ modern dark web UI (served locally — no Electron, no Node).
 - **Multiple instances** — each with its own folder: saves, mods, configs, resource packs, screenshots.
 - **Java handled for you** — detects installed JVMs; if none is compatible it downloads a
   [Temurin](https://adoptium.net) JRE automatically (per version, cached).
-- **Non-premium (offline) mode** — play with any username, no account required.
+- **Non-premium (offline) mode** — play with any username, no account required (launches in the free-trial demo).
+- **Microsoft account sign-in** — optional full-mode auth for accounts that own Minecraft: Java Edition (Xbox Live → XSTS → Minecraft services). Offline remains the default.
+- **Instance import** — scan & import instances from Prism/PolyMC, SKLauncher, Modrinth App and Fast Client (options, mods, packs, saves, configs, shaders, screenshots).
+- **Discord Rich Presence** — optional, bring your own Discord application client ID.
+- **Screenshot gallery** — per-instance screenshot browser inside the edit panel.
 - **Skin preview** — renders your skin by username (via mc-heads.net).
 - **RAM & JVM settings** — per-instance min/max memory and JVM args, plus global defaults.
 - **News feed** — latest Minecraft news from minecraft.net.
@@ -100,6 +104,13 @@ NP Launcher/
     ├── templates/index.html
     └── static/{css,js}/  # UI
 ```
+
+## Credits
+
+Microsoft sign-in flow, Discord Rich Presence IPC, and the other-launcher instance
+importers are derived from **[crit-launcher](https://github.com/snigglaberry/crit-launcher)**
+by CRIT (MIT License). See [NOTICE](NOTICE) for attribution and the license text.
+Thanks for publishing it.
 
 ## License
 

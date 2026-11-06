@@ -13,6 +13,7 @@ from flask import Flask, jsonify, request, send_from_directory
 
 from . import __version__
 from . import config as cfg
+from . import auth_ms, import_ext
 from . import instances, launch, loaders, mojang, modrinth, news, updater
 from .java import find_javas
 from .paths import data_dir, instances_dir, logs_dir, package_resource
@@ -128,6 +129,40 @@ def create_app() -> Flask:
         name = (request.args.get("name") or "Player").strip() or "Player"
         return jsonify({"uuid": offline_uuid(name), "name": name})
 
+    # ------------------------------------------------------- accounts
+    @app.route("/api/accounts", methods=["GET"])
+    def api_accounts_list():
+        return jsonify(auth_ms.list_accounts())
+
+    @app.route("/api/accounts/ms/start", methods=["POST"])
+    def api_accounts_ms_start():
+        return jsonify({"url": auth_ms.authorize_url()})
+
+    @app.route("/api/accounts/ms/callback", methods=["POST"])
+    def api_accounts_ms_callback():
+        body = request.get_json(force=True, silent=True) or {}
+        paste = (body.get("url") or "").strip()
+        if not paste:
+            return jsonify({"error": "paste the full URL from the final page"}), 400
+        try:
+            account = auth_ms.sign_in_with_paste(paste)
+            return jsonify({"account": {"name": account["name"], "uuid": account["uuid"], "type": "microsoft"}})
+        except auth_ms.AuthError as exc:
+            return jsonify({"error": str(exc)}), 400
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"error": f"sign-in failed: {exc}"}), 502
+
+    @app.route("/api/accounts/select", methods=["POST"])
+    def api_accounts_select():
+        body = request.get_json(force=True, silent=True) or {}
+        uuid = (body.get("uuid") or "").strip()
+        ok = auth_ms.set_active(uuid)
+        return jsonify({"selected": ok})
+
+    @app.route("/api/accounts/<uuid>", methods=["DELETE"])
+    def api_accounts_delete(uuid):
+        return jsonify({"deleted": auth_ms.remove_account(uuid)})
+
     # --------------------------------------------------------- settings
     @app.route("/api/settings", methods=["GET"])
     def api_settings_get():
@@ -138,7 +173,7 @@ def create_app() -> Flask:
         body = request.get_json(force=True, silent=True) or {}
         allowed = {k: body[k] for k in (
             "java_path", "offline_username", "default_min_mb", "default_max_mb",
-            "jvm_args", "update_repo", "news_enabled",
+            "jvm_args", "update_repo", "news_enabled", "discord_client_id",
         ) if k in body}
         return jsonify({"settings": cfg.save({**cfg.load(), **allowed})})
 
@@ -389,6 +424,79 @@ def create_app() -> Flask:
 
         ok = _run_job(work)
         return jsonify({"started": ok})
+
+    # -------------------------------------------------------- import
+    @app.route("/api/import/scan")
+    def api_import_scan():
+        try:
+            return jsonify({"sources": import_ext.scan_all()})
+        except Exception as exc:  # noqa: BLE001
+            return jsonify({"error": str(exc)}), 500
+
+    @app.route("/api/import", methods=["POST"])
+    def api_import():
+        body = request.get_json(force=True, silent=True) or {}
+        items = body.get("items") or []
+        options = body.get("options") or {}
+        if not items:
+            return jsonify({"error": "nothing selected"}), 400
+
+        def work():
+            results = []
+            total = len(items)
+            for i, item in enumerate(items):
+                label = item.get("dest_name") or item.get("source_id") or f"item {i+1}"
+                JOB.update(phase="import", done=i, total=total, message=f"Importing {label}…")
+                try:
+                    r = import_ext.import_instance(
+                        item.get("launcher", ""),
+                        item.get("source_id", ""),
+                        dest_name=item.get("dest_name") or "",
+                        options=options,
+                        log=lambda m: JOB.update(message=m),
+                    )
+                    results.append({"item": label, "ok": True, "instance": r["instance"]["id"]})
+                except Exception as exc:  # noqa: BLE001
+                    results.append({"item": label, "ok": False, "error": str(exc)})
+            JOB.update(done=total, total=total)
+            return {"imported": results}
+
+        ok = _run_job(work)
+        return jsonify({"started": ok})
+
+    # ---------------------------------------------------- screenshots
+    def _screenshots_dir(instance_id: str):
+        inst = instances.get_instance(instance_id)
+        if not inst:
+            return None
+        game_dir = instances_dir() / inst["id"]
+        shots = game_dir / "screenshots"
+        return shots if shots.is_dir() else None
+
+    @app.route("/api/instances/<instance_id>/screenshots")
+    def api_screenshots(instance_id):
+        shots = _screenshots_dir(instance_id)
+        if shots is None:
+            return jsonify({"screenshots": []})
+        items = []
+        for p in shots.iterdir():
+            if p.is_file() and p.suffix.lower() in (".png", ".jpg", ".jpeg", ".gif", ".webp"):
+                st = p.stat()
+                items.append({"name": p.name, "size": st.st_size, "mtime": int(st.st_mtime)})
+        items.sort(key=lambda s: s["mtime"], reverse=True)
+        return jsonify({"screenshots": items})
+
+    @app.route("/api/instances/<instance_id>/screenshots/<path:name>")
+    def api_screenshot_file(instance_id, name):
+        from flask import send_from_directory
+
+        shots = _screenshots_dir(instance_id)
+        if shots is None:
+            return jsonify({"error": "not found"}), 404
+        safe = os.path.basename(name)
+        if safe != name:
+            return jsonify({"error": "bad name"}), 400
+        return send_from_directory(str(shots), safe)
 
     # ----------------------------------------------------------- news
     @app.route("/api/news")

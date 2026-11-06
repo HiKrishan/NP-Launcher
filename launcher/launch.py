@@ -8,6 +8,7 @@ import uuid
 from collections import deque
 from pathlib import Path
 
+from . import auth_ms
 from .config import load as load_config
 from .java import ensure_java
 from .mojang import (
@@ -20,6 +21,45 @@ from .mojang import (
 )
 from .instances import instance_game_dir, mark_played
 from .paths import logs_dir
+
+try:
+    from . import discord_rpc
+except Exception:  # pragma: no cover — never let presence break launching
+    discord_rpc = None
+
+PRESENCE = None
+
+
+def _presence_client_id() -> str:
+    return (load_config().get("discord_client_id") or "").strip()
+
+
+def _start_presence(inst: dict, version_id: str) -> None:
+    global PRESENCE
+    client_id = _presence_client_id()
+    if not client_id or discord_rpc is None:
+        return
+    try:
+        p = discord_rpc.Presence(client_id)
+        p.start(
+            "Playing Minecraft",
+            f"{inst.get('name', 'instance')} · {inst.get('mc_version') or version_id} · {inst.get('loader', 'vanilla')}",
+            asset="minecraft",
+            large_text=f"NP Launcher — {inst.get('name', 'instance')}",
+        )
+        PRESENCE = p
+    except Exception:
+        PRESENCE = None
+
+
+def _stop_presence() -> None:
+    global PRESENCE
+    if PRESENCE is not None:
+        try:
+            PRESENCE.stop()
+        except Exception:
+            pass
+        PRESENCE = None
 
 MAX_LOG_LINES = 800
 
@@ -66,7 +106,7 @@ def _resolve_args(raw_args: list, ctx: dict) -> list:
     return out
 
 
-def build_command(inst: dict, data: dict, java_path: str, natives_path: Path) -> list[str]:
+def build_command(inst: dict, data: dict, java_path: str, natives_path: Path, account: dict | None = None) -> list[str]:
     cfg = load_config()
     game_dir = instance_game_dir(inst)
     version_id = data.get("id", inst.get("version_id"))
@@ -82,15 +122,24 @@ def build_command(inst: dict, data: dict, java_path: str, natives_path: Path) ->
     classpath = libs + [str(jar)]
     sep = ";" if os.name == "nt" else ":"
 
-    username = (cfg.get("offline_username") or "Player").strip() or "Player"
+    if account:
+        mc_token = account.get("mc_token", "")
+        username = account.get("name", "Player")
+        player_uuid = account.get("uuid", offline_uuid(username))
+        user_type = "msa"
+    else:
+        username = (cfg.get("offline_username") or "Player").strip() or "Player"
+        player_uuid = offline_uuid(username)
+        mc_token = "0"
+        user_type = "legacy"
     ctx = {
         "auth_player_name": username,
-        "auth_uuid": offline_uuid(username),
-        "auth_access_token": "0",
-        "auth_session": "token:0:0",
+        "auth_uuid": player_uuid,
+        "auth_access_token": mc_token,
+        "auth_session": f"token:{mc_token}:{player_uuid}",
         "clientid": "np-launcher",
         "auth_xuid": "0",
-        "user_type": "legacy",
+        "user_type": user_type,
         "user_properties": "{}",
         "version_name": version_id,
         "game_directory": str(game_dir),
@@ -238,8 +287,28 @@ def launch_instance(inst: dict, on_progress=None) -> dict:
     game_dir = instance_game_dir(inst)
     game_dir.mkdir(parents=True, exist_ok=True)
 
-    cmd = build_command(inst, data, java_path, classpath_natives)
+    account = None
+    try:
+        account = auth_ms.active_account_for_launch()
+    except auth_ms.AuthError as exc:
+        raise RuntimeError(f"Microsoft sign-in problem: {exc}") from exc
+    if account:
+        if on_progress:
+            on_progress("auth", None, None)
+        print(f"[np-launcher] launching as Microsoft account: {account.get('name')}")
+
+    cmd = build_command(inst, data, java_path, classpath_natives, account)
     log_path = logs_dir() / f"{inst['id']}.log"
     GAME.start(cmd, game_dir, log_path)
+    _start_presence(inst, version_id)
+
+    def _watch_presence():
+        import time as _time
+
+        while GAME.running:
+            _time.sleep(2)
+        _stop_presence()
+
+    threading.Thread(target=_watch_presence, daemon=True, name="presence-watch").start()
     mark_played(inst["id"])
     return {"launched": True, "pid": GAME.proc.pid if GAME.proc else None, "command_preview": cmd[:8]}

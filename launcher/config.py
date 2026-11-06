@@ -17,6 +17,7 @@ _DEFAULTS = {
     "jvm_args": "",                # extra args appended for every launch
     "update_repo": "",             # GitHub slug "owner/repo" used by the update checker
     "news_enabled": True,
+    "discord_client_id": "",       # Discord application client id for rich presence (optional)
     "last_instance": "",
     "window_width": 1600,
     "window_height": 900,
