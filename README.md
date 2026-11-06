@@ -20,7 +20,7 @@ modern dark web UI (served locally — no Electron, no Node).
 - **Skin preview** — renders your skin by username (via mc-heads.net).
 - **RAM & JVM settings** — per-instance min/max memory and JVM args, plus global defaults.
 - **News feed** — latest Minecraft news from minecraft.net.
-- **Auto-update** — checks a GitHub Releases feed on startup (configurable repo slug).
+- **Auto-update** — checks a GitHub Releases feed on startup (source: [HiKrishan/NP-Launcher](https://github.com/HiKrishan/NP-Launcher)).
 - **Console drawer** — live download progress + game output log.
 
 ## Requirements
@@ -76,7 +76,7 @@ are bundled); game data still lives in `~/.np-launcher`.
 - **Skin previews** are fetched from mc-heads.net at render time; offline-only machines won't
   show a preview (the launcher still works fine).
 - **Auto-update** needs a public GitHub repo with releases. Set it in
-  *Settings → Auto-Update → GitHub repo* (e.g. `yourname/np-launcher`). Without it, the check is skipped.
+  *Settings → Auto-Update → GitHub repo* (this project uses `HiKrishan/NP-Launcher`). Without it, the check is skipped.
 - Modpack installs verify SHA-1/SHA-512 from the pack manifest; corrupt or blocked downloads are
   reported per-file in the console rather than failing silently.
 
