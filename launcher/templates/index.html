@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>NP Launcher</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='18' fill='%2363b04f'/><rect x='24' y='24' width='17' height='17' fill='%23263019'/><rect x='59' y='24' width='17' height='17' fill='%23263019'/><rect x='41' y='48' width='18' height='11' fill='%23263019'/><rect x='35' y='59' width='10' height='12' fill='%23263019'/><rect x='55' y='59' width='10' height='12' fill='%23263019'/></svg>" />
+<link rel="stylesheet" href="/static/css/style.css" />
+</head>
+<body>
+
+<!-- ══════════════ Sidebar ══════════════ -->
+<aside class="sidebar">
+  <div class="brand">
+    <svg class="brand-mark" viewBox="0 0 100 100" aria-hidden="true">
+      <rect width="100" height="100" rx="20" fill="#63b04f"/>
+      <rect x="23" y="23" width="18" height="18" fill="#263019"/>
+      <rect x="59" y="23" width="18" height="18" fill="#263019"/>
+      <rect x="41" y="47" width="18" height="12" fill="#263019"/>
+      <rect x="34" y="59" width="11" height="13" fill="#263019"/>
+      <rect x="55" y="59" width="11" height="13" fill="#263019"/>
+    </svg>
+    <div class="brand-text">
+      <span class="brand-name">NP<span class="brand-accent">Launcher</span></span>
+      <span class="brand-tag">not your average .jar runner</span>
+    </div>
+  </div>
+
+  <nav class="nav">
+    <button class="nav-item active" data-view="home">
+      <svg viewBox="0 0 24 24"><path d="M3 10.5 12 3l9 7.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><path d="M5.5 9.5V21h13V9.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Home
+    </button>
+    <button class="nav-item" data-view="instances">
+      <svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/><rect x="3" y="14" width="18" height="6" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.8"/></svg>
+      Instances
+    </button>
+    <button class="nav-item" data-view="discover">
+      <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="m20 20-3.8-3.8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+      Discover
+    </button>
+    <button class="nav-item" data-view="settings">
+      <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M19 12a7 7 0 0 0-.14-1.4l2-1.5-2-3.4-2.3 1a7 7 0 0 0-2.4-1.4L13.8 2h-3.6l-.36 2.7a7 7 0 0 0-2.4 1.4l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2.8l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 2.4 1.4l.36 2.7h3.6l.36-2.7a7 7 0 0 0 2.4-1.4l2.3 1 2-3.4-2-1.5c.1-.46.14-.93.14-1.4Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>
+      Settings
+    </button>
+  </nav>
+
+  <div class="sidebar-foot">
+    <div class="skin-mini">
+      <img id="skinMini" alt="skin" referrerpolicy="no-referrer"
+           onerror="this.onerror=null;this.src='';this.classList.add('skin-fallback')" />
+    </div>
+    <div class="foot-meta">
+      <div class="foot-name" id="footUsername">Player</div>
+      <div class="foot-sub"><span id="footVersion">v…</span> · offline mode</div>
+    </div>
+  </div>
+</aside>
+
+<!-- ══════════════ Main ══════════════ -->
+<main class="main">
+
+  <!-- ═══ HOME ═══ -->
+  <section class="view active" id="view-home">
+    <header class="page-head">
+      <div>
+        <h1>Ready when <span class="accent">you</span> are.</h1>
+        <p class="page-sub" id="homeSubtitle">Vanilla, Fabric, Forge or NeoForge — one click away.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-ghost" id="refreshManifestBtn" title="Re-fetch the Mojang version list">Refresh versions</button>
+        <button class="btn btn-primary" id="homePlayBtn">
+          <svg viewBox="0 0 24 24" class="btn-icon"><path d="M8 5.5v13l11-6.5-11-6.5Z" fill="currentColor"/></svg>
+          Play
+        </button>
+      </div>
+    </header>
+
+    <div class="update-banner hidden" id="updateBanner">
+      <div class="update-copy">
+        <strong>NP Launcher <span id="updateLatest"></span> is out.</strong>
+        <span id="updateNotes"></span>
+      </div>
+      <a class="btn btn-small btn-primary" id="updateLink" href="#" target="_blank" rel="noopener">Get update</a>
+    </div>
+
+    <div class="home-grid">
+      <div class="panel news-panel">
+        <div class="panel-head">
+          <h2>Minecraft News</h2>
+          <span class="panel-hint">live from minecraft.net</span>
+        </div>
+        <div class="news-grid" id="newsGrid">
+          <div class="skeleton"></div><div class="skeleton"></div><div class="skeleton"></div>
+        </div>
+      </div>
+
+      <div class="side-col">
+        <div class="panel profile-panel">
+          <div class="panel-head"><h2>Your Player</h2><span class="panel-hint">offline</span></div>
+          <div class="profile-body">
+            <div class="profile-skin">
+              <img id="skinBig" alt="player skin" referrerpolicy="no-referrer"
+                   onerror="this.onerror=null;this.src='';this.classList.add('skin-fallback')" />
+            </div>
+            <div class="profile-fields">
+              <label class="field">
+                <span class="field-label">Username</span>
+                <input id="profileUsername" class="input" maxlength="16" spellcheck="false" autocomplete="off" placeholder="Player" />
+              </label>
+              <label class="field">
+                <span class="field-label">UUID</span>
+                <input id="profileUuid" class="input input-mono" readonly tabindex="-1" />
+              </label>
+              <button class="btn btn-ghost btn-small" id="saveProfileBtn">Save profile</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-head"><h2>Last Played</h2><span class="panel-hint" id="lastPlayedHint"></span></div>
+          <div class="last-played" id="lastPlayedCard">
+            <div class="lp-empty">No instances yet. Go make one — it takes ten seconds.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ INSTANCES ═══ -->
+  <section class="view" id="view-instances">
+    <header class="page-head">
+      <div>
+        <h1>Instances</h1>
+        <p class="page-sub">Every instance is its own folder — mods, saves and configs stay separate.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-primary" id="newInstanceBtn">+ New instance</button>
+      </div>
+    </header>
+    <div class="instance-grid" id="instanceGrid"></div>
+    <div class="empty-state hidden" id="instancesEmpty">
+      <div class="empty-art">⛏</div>
+      <h3>Nothing here but dirt</h3>
+      <p>Create your first instance and get mining.</p>
+      <button class="btn btn-primary" id="emptyNewInstanceBtn">+ New instance</button>
+    </div>
+  </section>
+
+  <!-- ═══ DISCOVER ═══ -->
+  <section class="view" id="view-discover">
+    <header class="page-head">
+      <div>
+        <h1>Discover</h1>
+        <p class="page-sub">Mods &amp; modpacks from Modrinth — no API key, no drama.</p>
+      </div>
+      <div class="head-actions segmented" role="tablist">
+        <button class="seg active" data-discover="mod">Mods</button>
+        <button class="seg" data-discover="modpack">Modpacks</button>
+      </div>
+    </header>
+
+    <div class="discover-controls panel">
+      <input id="modrinthQuery" class="input discover-input" placeholder="Search… try ‘create’, ‘sodium’, ‘better mc’" autocomplete="off" spellcheck="false" />
+      <select id="modrinthInstance" class="input select"></select>
+      <select id="modrinthLoader" class="input select">
+        <option value="">Any loader</option>
+        <option value="fabric">Fabric</option>
+        <option value="forge">Forge</option>
+        <option value="neoforge">NeoForge</option>
+      </select>
+      <input id="modrinthGameVersion" class="input" placeholder="MC version (optional)" autocomplete="off" spellcheck="false" />
+      <button class="btn btn-primary" id="modrinthSearchBtn">Search</button>
+    </div>
+
+    <div class="mrpack-import">
+      <span>Have a .mrpack already?</span>
+      <input id="mrpackPath" class="input input-mono" placeholder="C:\path\to\modpack.mrpack" spellcheck="false" />
+      <button class="btn btn-ghost btn-small" id="mrpackImportBtn">Import</button>
+    </div>
+
+    <div class="result-grid" id="modrinthResults"></div>
+    <div class="empty-state hidden" id="discoverEmpty">
+      <div class="empty-art">🔎</div>
+      <h3>Type something, hit Search</h3>
+      <p>Results come straight from Modrinth.</p>
+    </div>
+  </section>
+
+  <!-- ═══ SETTINGS ═══ -->
+  <section class="view" id="view-settings">
+    <header class="page-head">
+      <div>
+        <h1>Settings</h1>
+        <p class="page-sub">Java, memory, JVM args and the stuff you break once.</p>
+      </div>
+      <div class="head-actions">
+        <button class="btn btn-primary" id="saveSettingsBtn">Save settings</button>
+      </div>
+    </header>
+
+    <div class="settings-grid">
+      <div class="panel">
+        <div class="panel-head"><h2>Java</h2><button class="btn btn-ghost btn-small" id="rescanJavaBtn">Re-scan</button></div>
+        <label class="field">
+          <span class="field-label">Custom java path <em>(empty = auto-detect / auto-download Temurin)</em></span>
+          <input id="javaPath" class="input input-mono" spellcheck="false" placeholder="C:\Program Files\Eclipse Adoptium\jdk-17\bin\java.exe" />
+        </label>
+        <div class="detected-list" id="detectedJavaList"></div>
+        <p class="foot-note">If nothing compatible is found, NP Launcher downloads a Temurin JRE automatically into its data folder.</p>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Memory &amp; JVM</h2></div>
+        <div class="field-row">
+          <label class="field"><span class="field-label">Min RAM (MB)</span><input id="defaultMinMb" type="number" min="256" step="256" class="input" /></label>
+          <label class="field"><span class="field-label">Max RAM (MB)</span><input id="defaultMaxMb" type="number" min="512" step="256" class="input" /></label>
+        </div>
+        <label class="field">
+          <span class="field-label">Extra JVM args <em>(applied to every launch)</em></span>
+          <input id="jvmArgs" class="input input-mono" spellcheck="false" placeholder="-XX:+UseG1GC -XX:MaxGCPauseMillis=130" />
+        </label>
+        <label class="check"><input type="checkbox" id="newsEnabled" /> Show the news feed on Home</label>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Auto-Update</h2><button class="btn btn-ghost btn-small" id="checkUpdateBtn">Check now</button></div>
+        <label class="field">
+          <span class="field-label">GitHub repo <em>(owner/repo — used for the update check)</em></span>
+          <input id="updateRepo" class="input input-mono" spellcheck="false" placeholder="yourname/np-launcher" />
+        </label>
+        <div class="update-status" id="updateStatus">Not checked yet.</div>
+      </div>
+
+      <div class="panel">
+        <div class="panel-head"><h2>Data</h2></div>
+        <div class="data-dir"><code id="dataDirPath">…</code></div>
+        <div class="btn-row">
+          <button class="btn btn-ghost btn-small" id="openDataDirBtn">Open data folder</button>
+        </div>
+        <p class="foot-note">Game files, libraries, assets and instances all live here. Delete it and NP Launcher forgets everything.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ═══ Console drawer ═══ -->
+  <div class="console" id="console">
+    <button class="console-bar" id="consoleToggle">
+      <span class="console-dot" id="consoleDot"></span>
+      <span class="console-status" id="consoleStatus">Idle</span>
+      <span class="console-phase" id="consolePhase"></span>
+      <span class="console-spacer"></span>
+      <span class="console-pct" id="consolePct"></span>
+      <svg class="console-chevron" viewBox="0 0 24 24"><path d="m6 14 6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <div class="console-body">
+      <div class="progress"><div class="progress-fill" id="progressFill"></div></div>
+      <div class="console-actions">
+        <button class="btn btn-danger btn-small" id="stopGameBtn" disabled>Stop game</button>
+        <button class="btn btn-ghost btn-small" id="clearLogsBtn">Clear view</button>
+      </div>
+      <pre class="console-log" id="consoleLog"></pre>
+    </div>
+  </div>
+</main>
+
+<!-- ═══ New instance modal ═══ -->
+<div class="modal-backdrop hidden" id="newInstanceModal">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>New instance</h2>
+      <button class="icon-btn" id="closeNewInstance" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <label class="field"><span class="field-label">Name</span><input id="niName" class="input" placeholder="My survival world" autocomplete="off" /></label>
+
+      <label class="field">
+        <span class="field-label">Minecraft version</span>
+        <input id="niVersionFilter" class="input" placeholder="Filter… (e.g. 1.21)" autocomplete="off" spellcheck="false" />
+        <select id="niVersion" class="input select" size="7"></select>
+      </label>
+
+      <div class="field-row">
+        <label class="field">
+          <span class="field-label">Loader</span>
+          <select id="niLoader" class="input select">
+            <option value="vanilla">Vanilla</option>
+            <option value="fabric">Fabric</option>
+            <option value="forge">Forge</option>
+            <option value="neoforge">NeoForge</option>
+          </select>
+        </label>
+        <label class="field" id="niLoaderVersionWrap">
+          <span class="field-label">Loader version</span>
+          <input id="niLoaderVersion" class="input input-mono" list="niLoaderVersionList" placeholder="latest" autocomplete="off" spellcheck="false" />
+          <datalist id="niLoaderVersionList"></datalist>
+        </label>
+      </div>
+
+      <div class="field-row">
+        <label class="field"><span class="field-label">Min RAM (MB)</span><input id="niMinMb" type="number" min="256" step="256" value="1024" class="input" /></label>
+        <label class="field"><span class="field-label">Max RAM (MB)</span><input id="niMaxMb" type="number" min="512" step="256" value="4096" class="input" /></label>
+      </div>
+
+      <label class="field"><span class="field-label">JVM args <em>(optional)</em></span><input id="niJvmArgs" class="input input-mono" placeholder="-XX:+UseG1GC" autocomplete="off" spellcheck="false" /></label>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" id="cancelNewInstance">Cancel</button>
+      <button class="btn btn-primary" id="createInstanceBtn">Create instance</button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ Edit instance modal ═══ -->
+<div class="modal-backdrop hidden" id="editInstanceModal">
+  <div class="modal" role="dialog" aria-modal="true">
+    <div class="modal-head">
+      <h2>Edit instance</h2>
+      <button class="icon-btn" id="closeEditInstance" aria-label="Close">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="eiId" />
+      <label class="field"><span class="field-label">Name</span><input id="eiName" class="input" /></label>
+      <div class="field-row">
+        <label class="field"><span class="field-label">Min RAM (MB)</span><input id="eiMinMb" type="number" min="256" step="256" class="input" /></label>
+        <label class="field"><span class="field-label">Max RAM (MB)</span><input id="eiMaxMb" type="number" min="512" step="256" class="input" /></label>
+      </div>
+      <label class="field"><span class="field-label">JVM args</span><input id="eiJvmArgs" class="input input-mono" spellcheck="false" /></label>
+      <div class="edit-meta" id="eiMeta"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger" id="deleteInstanceBtn">Delete</button>
+      <span class="modal-spacer"></span>
+      <button class="btn btn-ghost" id="cancelEditInstance">Cancel</button>
+      <button class="btn btn-primary" id="saveEditInstanceBtn">Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-stack" id="toastStack"></div>
+
+<script src="/static/js/app.js"></script>
+</body>
+</html>
